@@ -1,0 +1,141 @@
+# ==============================
+# AnimeCom Gateway — Main Config
+# ==============================
+
+server:
+  port: ${GATEWAY_PORT:3000}
+
+spring:
+  application:
+    name: animecom-gateway
+
+  # ── Cloud Gateway Routes ──────────────────────────────────
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+
+          routes:
+            # Auth Service
+            - id: auth-service
+              uri: http://${AUTH_SERVICE_HOST:auth-service}:${AUTH_SERVICE_PORT:4001}
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: authServiceCB
+                    fallbackUri: forward:/fallback/auth
+
+            # Chat Service
+            - id: chat-service
+              uri: http://${CHAT_SERVICE_HOST:chat-service}:${CHAT_SERVICE_PORT:4002}
+              predicates:
+                - Path=/api/chat/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: chatServiceCB
+                    fallbackUri: forward:/fallback/chat
+
+            # Notification Service
+            - id: notification-service
+              uri: http://${NOTIFICATION_SERVICE_HOST:notification-service}:${NOTIFICATION_SERVICE_PORT:4003}
+              predicates:
+                - Path=/api/notifications/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: notificationServiceCB
+                    fallbackUri: forward:/fallback/notifications
+
+            # Presence Service
+            - id: presence-service
+              uri: http://${PRESENCE_SERVICE_HOST:presence-service}:${PRESENCE_SERVICE_PORT:4004}
+              predicates:
+                - Path=/api/presence/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: presenceServiceCB
+                    fallbackUri: forward:/fallback/presence
+
+          # Global CORS
+          # allowedOrigins with a wildcard ("*") is incompatible with allowCredentials: true.
+          # Use allowedOriginPatterns: "*" only when credentials are needed.
+          # Here credentials are not sent cross-origin at the gateway level, so wildcard is fine.
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOriginPatterns: "*"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - PATCH
+                  - OPTIONS
+                allowedHeaders: "*"
+                allowCredentials: false
+                maxAge: 3600
+
+  # ── Redis ─────────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+
+  # ── Security / JWT ────────────────────────────────────────
+  # spring-boot auto-config does NOT support symmetric secret keys via properties;
+  # a custom ReactiveJwtDecoder bean in SecurityConfig reads this value directly.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          secret-key: ${JWT_SECRET:super_secret_jwt_key_must_be_at_least_32_chars}
+
+# ── Actuator ──────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway
+  endpoint:
+    health:
+      show-details: when-authorized
+    gateway:
+      enabled: true
+
+# ── Resilience4J ──────────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+    instances:
+      authServiceCB:
+        base-config: default
+      chatServiceCB:
+        base-config: default
+      notificationServiceCB:
+        base-config: default
+      presenceServiceCB:
+        base-config: default
+
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
+
+# ── Logging ───────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.animecom.gateway: INFO
+    org.springframework.cloud.gateway: INFO

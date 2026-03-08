@@ -1,0 +1,53 @@
+# ==============================
+# AnimeCom Gateway — Dev Profile
+# ==============================
+# Activate with: --spring.profiles.active=dev
+# or set SPRING_PROFILES_ACTIVE=dev
+
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            # Auth Service (localhost)
+            - id: auth-service
+              uri: http://localhost:${AUTH_SERVICE_PORT:4001}
+              predicates:
+                - Path=/api/auth/**
+
+            # Chat Service (localhost)
+            - id: chat-service
+              uri: http://localhost:${CHAT_SERVICE_PORT:4002}
+              predicates:
+                - Path=/api/chat/**
+
+            # Notification Service (localhost)
+            - id: notification-service
+              uri: http://localhost:${NOTIFICATION_SERVICE_PORT:4003}
+              predicates:
+                - Path=/api/notifications/**
+
+            # Presence Service (localhost)
+            - id: presence-service
+              uri: http://localhost:${PRESENCE_SERVICE_PORT:4004}
+              predicates:
+                - Path=/api/presence/**
+
+  data:
+    redis:
+      host: localhost
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          secret-key: ${JWT_SECRET:super_secret_jwt_key}
+
+# Debug logging for development
+logging:
+  level:
+    root: INFO
+    com.animecom.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: DEBUG

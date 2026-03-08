@@ -1,0 +1,71 @@
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: animecom-postgre
+    environment:
+      POSTGRES_USER: AnimeComUserPostgre
+      POSTGRES_PASSWORD: "@RAj5214"
+      POSTGRES_DB: AnimeComDB
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: AnimeCom-redis
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio
+    container_name: AnimeCom-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: AnimeComUserMinIo
+      MINIO_ROOT_PASSWORD: "@RAj5214"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  nginx:
+    image: nginx:latest
+    container_name: AnimeCom-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - gateway
+
+  gateway:
+    build:
+      context: ./backend/gateway
+      dockerfile: DockerFile
+    container_name: AnimeCom-gateway
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    environment:
+      - GATEWAY_PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_HOST=auth-service
+      - AUTH_SERVICE_PORT=${AUTH_SERVICE_PORT:-4001}
+      - CHAT_SERVICE_HOST=chat-service
+      - CHAT_SERVICE_PORT=${CHAT_SERVICE_PORT:-4002}
+      - NOTIFICATION_SERVICE_HOST=notification-service
+      - NOTIFICATION_SERVICE_PORT=${NOTIFICATION_SERVICE_PORT:-4003}
+      - PRESENCE_SERVICE_HOST=presence-service
+      - PRESENCE_SERVICE_PORT=${PRESENCE_SERVICE_PORT:-4004}
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:
+  minio_data:
+
